@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+langgraph
+langsmith
+langchain-groq
+pydantic
+sqlalchemy
+razorpay
+streamlit
+python-dotenv
