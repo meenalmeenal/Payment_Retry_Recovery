@@ -42,8 +42,11 @@ def generate_batch(n: int = 50) -> list[dict]:
 
 
 if __name__ == "__main__":
-    import json
+    import csv
+
     data = generate_batch(50)
-    with open("data/failed_payments_batch.json", "w") as f:
-        json.dump(data, f, indent=2)
-    print(f"Generated {len(data)} synthetic failed payments -> data/failed_payments_batch.json")
+    with open("data/failed_payments_batch.csv", "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["transaction_id", "customer_id", "amount", "decline_code"])
+        writer.writeheader()
+        writer.writerows(data)
+    print(f"Generated {len(data)} synthetic failed payments -> data/failed_payments_batch.csv")

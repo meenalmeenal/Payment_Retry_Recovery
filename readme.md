@@ -14,6 +14,11 @@ venv\Scripts\Activate.ps1          # Windows
 
 pip install -r requirements.txt
 cp .env.example .env               # then fill in your real keys
+
+mkdir data
+type nul > app\__init__.py         # Windows; use `touch` on Mac/Linux
+type nul > app\db\__init__.py
+type nul > app\graph\__init__.py
 ```
 
 Required keys in `.env`:
