@@ -7,36 +7,87 @@ measures ₹ recovered across a batch — with a full per-transaction audit trai
 
 ## Setup
 
-```bash
+### 1. Create and activate virtual environment
+
+**Windows (PowerShell):**
+```powershell
 python -m venv venv
-venv\Scripts\Activate.ps1          # Windows
-# source venv/bin/activate         # Mac/Linux
-
-pip install -r requirements.txt
-cp .env.example .env               # then fill in your real keys
-
-mkdir data
-type nul > app\__init__.py         # Windows; use `touch` on Mac/Linux
-type nul > app\db\__init__.py
-type nul > app\graph\__init__.py
+venv\Scripts\Activate.ps1
 ```
 
-Required keys in `.env`:
-- `GROQ_API_KEY` — free at console.groq.com
-- `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` — test-mode keys from Razorpay dashboard
-- `LANGCHAIN_API_KEY` (optional) — free at smith.langchain.com, enables trace-based audit view
+**Mac/Linux:**
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+### 2. Install dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Create required folders/files
+
+**Windows (PowerShell):**
+```powershell
+mkdir data
+New-Item app\__init__.py
+New-Item app\db\__init__.py
+New-Item app\graph\__init__.py
+```
+
+**Mac/Linux:**
+```bash
+mkdir data
+touch app/__init__.py app/db/__init__.py app/graph/__init__.py
+```
+
+### 4. Create `.env` file in project root
+
+Create a file named `.env` (copy `.env.example` if present) and fill in:
+
+```
+GROQ_API_KEY=your_groq_api_key_here
+RAZORPAY_KEY_ID=your_razorpay_test_key_id
+RAZORPAY_KEY_SECRET=your_razorpay_test_key_secret
+
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_API_KEY=your_langsmith_api_key_here
+LANGCHAIN_PROJECT=payment-retry-recovery
+```
+
+**Where to get each key:**
+- **GROQ_API_KEY** (required, free): go to https://console.groq.com → sign in → API Keys → Create API Key
+- **RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET** (required, free, no KYC for test mode): go to https://dashboard.razorpay.com → sign up/log in → Settings → API Keys → Generate Test Key
+- **LANGCHAIN_API_KEY** (optional, for trace-based audit view): go to https://smith.langchain.com → sign in → Settings → API Keys → Create API Key
 
 ## Run
 
-Terminal 1 — API server:
-```bash
+**Terminal 1 — API server:**
+
+Windows:
+```powershell
 uvicorn app.main:app --reload
 ```
 
-Terminal 2 — dashboard:
+Mac/Linux:
+```bash
+uvicorn app.main:app --reload
+```
+(same command on both — just make sure venv is activated in this terminal too)
+
+**Terminal 2 — dashboard:**
+
+Windows:
+```powershell
+streamlit run streamlit_app.py
+```
+
+Mac/Linux:
 ```bash
 streamlit run streamlit_app.py
 ```
+(again, activate venv in this terminal first — each new terminal needs its own activation)
 
 Open the Streamlit URL, click "Run batch" to generate synthetic failed
 payments and run them through the recovery agent, then paste any
