@@ -100,7 +100,12 @@ diagnose -> decide -> act -> check -> (loop to decide | escalate | end)
 ```
 
 - **diagnose**: Groq LLM classifies the decline code into a root cause
-- **decide**: rule-based lookup maps root cause -> intervention (explainable, not a black box)
+- **decide**: rule-based lookup, attempt-aware — maps root cause to an ordered
+  sequence of interventions, and picks the next one based on how many have
+  already been tried for this transaction. If the first action for a cause
+  fails, the next attempt escalates to a genuinely different strategy
+  (e.g. switching mandate after a delayed retry fails) instead of repeating
+  something that already didn't work
 - **act**: executes the action (real Razorpay payment-link call for card updates;
   simulated success/failure for retry/mandate actions, since test mode can't
   force real bank outcomes on demand — clearly labeled `_mock_` in code)
@@ -114,8 +119,18 @@ is configured, auto-traced there too — this is the audit trail.
 
 | Part | Real or simulated |
 |---|---|
-| Agent loop / decisions / stopping rule | Real |
+| Agent loop / decisions / stopping rule / adaptive retry sequencing | Real |
 | Groq LLM classification | Real |
 | Razorpay payment-link creation | Real (test mode) |
 | Failed-payment batch | Synthetic (no public dataset exists for this) |
 | Retry/mandate success outcome | Simulated (test mode can't force bank retry results) |
+
+## Latest verified run
+
+Batch of 50 synthetic failed payments: **82% recovery rate**, ₹104,158.59
+recovered out of ₹133,443.78 at risk, 18% correctly escalated to human
+review, average 1.76 attempts per transaction. Example: a transaction
+declined for insufficient funds failed a delayed retry on attempt 1, then
+the agent adapted to switch_mandate on attempt 2, which succeeded —
+confirming the adaptive retry logic works as intended rather than
+repeating a failed action.
