@@ -16,15 +16,18 @@ from app.razorpay_client import execute_action
 from app.llm import classify_decline_reason
 
 
-# Maps a diagnosed root cause to the intervention we'll take.
-# Kept as a simple lookup so the "why -> what to do" logic is transparent
-# and easy to explain/justify to a judge (not a black-box LLM decision).
-ACTION_MAP = {
-    "temporary_issuer_problem": "retry_after_delay",
-    "card_expired_or_invalid": "send_update_card_link",
-    "insufficient_funds": "retry_after_delay",
-    "mandate_revoked": "switch_mandate",
-    "unknown": "escalate_immediately",
+# Maps a diagnosed root cause to an ORDERED list of interventions to try.
+# decide_node walks this list based on how many actions have already been
+# tried for this transaction, instead of blindly repeating the first one
+# every time. This makes retries adaptive: if the first strategy for a
+# cause fails, the next attempt escalates to a different strategy rather
+# than repeating a fix that just didn't work.
+ACTION_SEQUENCE = {
+    "temporary_issuer_problem": ["retry_after_delay", "retry_after_delay", "switch_mandate"],
+    "card_expired_or_invalid": ["send_update_card_link", "switch_mandate"],
+    "insufficient_funds": ["retry_after_delay", "switch_mandate"],
+    "mandate_revoked": ["switch_mandate", "send_update_card_link"],
+    "unknown": ["escalate_immediately"],
 }
 
 
@@ -44,12 +47,20 @@ def diagnose_node(state: RecoveryState) -> dict:
 
 def decide_node(state: RecoveryState) -> dict:
     """
-    Function: looks up the diagnosis in ACTION_MAP to pick the intervention.
-    This is the "decision" step — deliberately rule-based (not LLM) so the
-    choice is explainable and deterministic given a diagnosis.
+    Function: picks the next action based on the diagnosis AND how many
+    actions have already been attempted for this transaction. Walks
+    ACTION_SEQUENCE[diagnosis] by index = attempt_count, so a failed
+    first attempt escalates to a different strategy on the next loop
+    instead of repeating the same failed action. If attempt_count runs
+    past the end of the sequence, falls back to escalate_immediately —
+    there's nothing left worth trying.
     Updates: state.action
     """
-    action = ACTION_MAP.get(state.diagnosis, "escalate_immediately")
+    sequence = ACTION_SEQUENCE.get(state.diagnosis, ["escalate_immediately"])
+    if state.attempt_count < len(sequence):
+        action = sequence[state.attempt_count]
+    else:
+        action = "escalate_immediately"
     return {"action": action}
 
 
@@ -60,8 +71,7 @@ def act_node(state: RecoveryState) -> dict:
     an update-card payment link) or, where the sandbox can't simulate a
     real retry outcome, returns a simulated success/failure so the loop
     still has something real to react to.
-    Updates: nothing directly on state — result is consumed by check_node,
-    but we increment attempt_count here since an attempt just happened.
+    Updates: attempt_count and history (an attempt just happened).
     """
     outcome = execute_action(state.action, state.transaction_id, state.amount)
     record = AttemptRecord(
@@ -73,7 +83,6 @@ def act_node(state: RecoveryState) -> dict:
     return {
         "attempt_count": state.attempt_count + 1,
         "history": state.history + [record],
-        "_last_outcome": outcome,  # transient field read by check_node/router
     }
 
 
